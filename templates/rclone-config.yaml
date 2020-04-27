@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-rclone
+  labels:
+    {{- include "object-bucket-backup.labels" . | nindent 4 }}
+stringData:
+  rclone.conf: |+
+    [source]
+    {{- range $key, $value := .Values.source.rclone }}
+    {{ $key }} = {{ $value }}
+    {{- end }}
+    
+    [target]
+    {{- range $key, $value := .Values.target.rclone }}
+    {{ $key }} = {{ $value }}
+    {{- end }}

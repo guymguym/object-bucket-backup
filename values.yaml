@@ -1,0 +1,22 @@
+# Default values for object-bucket-backup.
+
+source:
+  bucketName: 1000genomes
+  prefix: "changelog_details/"  #   170 MB
+  rclone:
+    type: s3
+    provider: AWS
+    env_auth: false
+    region: us-east-1
+    # anonymous access
+    access_key_id: ""
+    secret_access_key: ""
+
+target:
+  obcStorageClassName: noobaa-obb.noobaa.io
+  rclone:
+    type: s3
+    provider: Other
+    env_auth: true
+    force_path_style: true
+    endpoint: https://s3.noobaa-obb.svc

@@ -1,0 +1,8 @@
+
+## OBB job created:
+
+kubectl get job {{ .Release.Name }}-{{ .Release.Revision }}
+
+## Monitor the progress by tailing the log:
+
+kubectl logs -l job-name={{ .Release.Name }}-{{ .Release.Revision }} -f

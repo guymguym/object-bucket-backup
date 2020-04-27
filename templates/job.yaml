@@ -1,0 +1,95 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-{{ .Release.Revision }}
+  labels:
+    {{- include "object-bucket-backup.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: rclone-config
+          secret:
+            secretName: {{ .Release.Name }}-rclone
+        - name: log
+          emptyDir: {}
+      containers:
+        - name: rclone
+          image: rclone/rclone
+          volumeMounts:
+            - name: rclone-config
+              mountPath: "/config/rclone"
+              readOnly: true
+            - name: log
+              mountPath: "/log"
+              readOnly: false
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-obc
+            - configMapRef:
+                name: {{ .Release.Name }}-obc
+          env:
+            - name: SOURCE_BUCKET
+              value: {{ .Values.source.bucketName | quote }}
+            - name: SOURCE_PREFIX
+              value: {{ .Values.source.prefix | quote }}
+            - name: RCLONE_NO_CHECK_CERTIFICATE
+              value: "true"
+            - name: RCLONE_CA_CERT
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+          command:
+            - sh
+            - "-c"
+            - |+
+              TARGET_LOG=target:$BUCKET_NAME/rclone-$(date +"%F-%s").log
+              (
+              echo ""
+              echo "==========================="
+              echo "= start                   ="
+              echo "==========================="
+              echo ""
+
+              SOURCE=source:$SOURCE_BUCKET/$SOURCE_PREFIX
+              TARGET=target:$BUCKET_NAME
+              RCLONE_SIZE="rclone --fast-list size"
+              RCLONE_COPY="rclone --progress --transfers 15 --checkers 30 copy"
+
+              echo "> rclone config show"
+              rclone config show || exit 1
+
+              echo ""
+              echo "==========================="
+              echo "= prepare                 ="
+              echo "==========================="
+              echo ""
+
+              echo "> $RCLONE_SIZE $SOURCE"
+              $RCLONE_SIZE $SOURCE || exit 1
+
+              echo "> $RCLONE_SIZE $TARGET"       
+              $RCLONE_SIZE $TARGET || exit 1
+
+              echo ""
+              echo "==========================="
+              echo "= copy                    ="
+              echo "==========================="
+              echo ""
+
+              echo "> $RCLONE_COPY $SOURCE $TARGET"
+              $RCLONE_COPY $SOURCE $TARGET || exit 1
+
+              echo ""
+              echo "==========================="
+              echo "= done                    ="
+              echo "==========================="
+              echo ""
+
+              ) | tee /log/rclone.log
+
+              # upload the log to target
+              stat /log/rclone.log
+              echo "> rclone rcat $TARGET_LOG < /log/rclone.log"
+              rclone rcat $TARGET_LOG < /log/rclone.log
+
